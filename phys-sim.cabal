@@ -1,0 +1,20 @@
+name:           phys-sim
+cabal-version: >= 1.10
+version:        0.1.0.0
+description:    foo
+author:         Mason Anderson
+maintainer:     masonanderson0@gmail.com
+build-type:     Simple
+extra-source-files:
+    README.md
+
+executable phys-sim
+  main-is: Main.hs
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -haddock
+  build-depends:
+      base >= 4.7
+    , gloss
+    , containers
+  default-language: Haskell2010
