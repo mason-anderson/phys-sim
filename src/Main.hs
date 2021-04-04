@@ -1,5 +1,3 @@
-{-# LANGUAGE TupleSections #-}
-
 module Main where
 
 import Graphics.Gloss
@@ -24,6 +22,7 @@ data World = World
   { objects :: [Object]
   , pressedKeys :: S.Set Key
   , stepSize :: Float
+  , clickPos :: Point
   } deriving (Show)
 
 data Object = Object Point Vector Float
@@ -35,22 +34,27 @@ initialState = World
     { objects = [Object (-80,0) (0,120) 100000, Object (80,0) (0,-120) 100000]
     , pressedKeys = S.empty
     , stepSize = 0.001
+    , clickPos = (0,0)
     }
-
-handleKeyEvents
-  :: Event -- ^ event to handle
-  -> World -- ^ initial world state
-  -> World -- ^ updated world state
-handleKeyEvents (EventKey (MouseButton LeftButton) Down _ (x,y)) world = world { objects = objects world ++ [Object (x,y) (0,0) 100000] }
-handleKeyEvents (EventKey key Down _ _) world = world { pressedKeys = S.insert key (pressedKeys world) }
-handleKeyEvents (EventKey key Up _ _) world = world { pressedKeys = S.delete key (pressedKeys world) }
-handleKeyEvents _ world = world
 
 window :: Display
 window = InWindow "Gravity" (windowSize, windowSize) (offset, offset)
 
 background :: Color
 background = black
+
+handleKeyEvents
+  :: Event -- ^ event to handle
+  -> World -- ^ initial world state
+  -> World -- ^ updated world state
+handleKeyEvents (EventKey (MouseButton LeftButton) Down _ (x,y)) world = world { clickPos = (x,y) }
+handleKeyEvents (EventKey (MouseButton LeftButton) Up _ pos) world = world { objects = addObject (clickPos world) pos : objects world}
+handleKeyEvents (EventKey key Down _ _) world = world { pressedKeys = S.insert key (pressedKeys world) }
+handleKeyEvents (EventKey key Up _ _) world = world { pressedKeys = S.delete key (pressedKeys world) }
+handleKeyEvents _ world = world
+
+addObject :: Point -> Point -> Object
+addObject p1 p2 = Object p1 ((fst p2 - fst p1)*2, (snd p2 - snd p1)*2) 100000
 
 distance :: Point -> Point -> Float
 distance p1 p2 = sqrt $ (fst p1 - fst p2)**2 + (snd p1 - snd p2)**2
@@ -93,10 +97,18 @@ doPhysics world = world {objects = objs'}
         objs = objects world
         objs' = map (updateObj world) objs
 
-runCommands :: World -> World
-runCommands world = if S.member (Char 'c') $ pressedKeys world
-                       then world {objects = []}
-                       else world
+handlePressedKeys :: World -> World
+handlePressedKeys = clear . incStepSize . decStepSize
+    where
+        clear world = if S.member (Char 'c') $ pressedKeys world
+            then world {objects = []}
+            else world
+        incStepSize world = if S.member (SpecialKey KeyUp) $ pressedKeys world
+            then world {stepSize = stepSize world + 0.0001}
+            else world
+        decStepSize world = if S.member (SpecialKey KeyDown) $ pressedKeys world
+            then world {stepSize = stepSize world - 0.0001}
+            else world
 
 -- | draw lines parallel to the force at regular intervals
 drawForceLines :: World -> [Picture]
@@ -127,7 +139,7 @@ render world = pictures $ forceLines ++ map objToPicture objs
 
 -- update the worlds state
 update :: Float -> World -> World
-update _ = doPhysics . runCommands
+update _ = doPhysics . handlePressedKeys
 
 main :: IO ()
 main = play window background fps initialState render handleKeyEvents update
